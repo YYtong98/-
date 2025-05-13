@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>股份稀释计算器</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 2em auto; padding: 1em; line-height: 1.6; }
+    h1 { text-align: center; }
+    section { margin-bottom: 2em; padding: 1em; border: 1px solid #ccc; border-radius: 8px; }
+    label { display: inline-block; width: 240px; margin-bottom: 0.5em; }
+    input, select { padding: 0.3em; width: 150px; }
+    button { padding: 0.5em 1em; margin-top: 1em; cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+    th, td { border: 1px solid #aaa; padding: 0.5em; text-align: right; }
+    th { background: #f4f4f4; }
+    .total-row th, .total-row td { font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>股份稀释计算器</h1>
+
+  <section id="stage1">
+    <h2>第 1 阶段：初始股权结构</h2>
+    <label>初始注册资本 (元)：<input type="number" id="initialCapital" value="10000000"/></label><br>
+    <label>A 持股比例 (%):<input type="number" id="pctA" value="65"/></label><br>
+    <label>B 持股比例 (%):<input type="number" id="pctB" value="15"/></label><br>
+    <label>C 持股比例 (%):<input type="number" id="pctC" value="10"/></label><br>
+    <label>D 持股比例 (%):<input type="number" id="pctD" value="10"/></label><br>
+    <button onclick="computeStage1()">计算第 1 阶段</button>
+    <div id="result1"></div>
+  </section>
+
+  <section id="stage2">
+    <h2>第 2 阶段：两次增资操作</h2>
+    <label>增资对象 1:
+      <select id="investorKey1">
+        <option value="A">A</option>
+        <option value="B">B</option>
+        <option value="C">C</option>
+        <option value="D">D</option>
+        <option value="E">新增股东（E）</option>
+        <option value="F">新增股东（F）</option>
+      </select>
+    </label><br>
+    <label>目标持股比例 1 (%):<input type="number" id="targetPct1" value="15"/></label><br>
+    <label>增资对象 2:
+      <select id="investorKey2">
+        <option value="A">A</option>
+        <option value="B">B</option>
+        <option value="C">C</option>
+        <option value="D">D</option>
+        <option value="E">新增股东（E）</option>
+        <option value="F">新增股东（F）</option>
+      </select>
+    </label><br>
+    <label>目标持股比例 2 (%):<input type="number" id="targetPct2" value="10"/></label><br>
+    <button onclick="computeStage2()">计算第 2 阶段</button>
+    <div id="result2"></div>
+  </section>
+
+  <script>
+    let origBaseCapital = 0;
+    let origCaps = {};
+
+    function computeStage1() {
+      origBaseCapital = parseFloat(document.getElementById('initialCapital').value) || 0;
+      const pA = parseFloat(document.getElementById('pctA').value) / 100;
+      const pB = parseFloat(document.getElementById('pctB').value) / 100;
+      const pC = parseFloat(document.getElementById('pctC').value) / 100;
+      const pD = parseFloat(document.getElementById('pctD').value) / 100;
+      origCaps = {
+        A: origBaseCapital * pA,
+        B: origBaseCapital * pB,
+        C: origBaseCapital * pC,
+        D: origBaseCapital * pD,
+        E: 0,
+        F: 0
+      };
+      renderTable('result1', origCaps, origBaseCapital);
+      document.getElementById('result2').innerHTML = '';
+    }
+
+    function computeStage2() {
+      if (origBaseCapital <= 0) {
+        alert('请先计算第 1 阶段');
+        return;
+      }
+      let tempBase = origBaseCapital;
+      const tempCaps = { ...origCaps };
+
+      // 第一次增资
+      const inv1 = document.getElementById('investorKey1').value;
+      const P1 = parseFloat(document.getElementById('targetPct1').value) / 100;
+      const old1 = tempCaps[inv1] || 0;
+      const x1 = (P1 * tempBase - old1) / (1 - P1);
+      tempCaps[inv1] = old1 + x1;
+      if (inv1 === 'E' || inv1 === 'F') tempCaps[inv1] = x1;
+      tempBase += x1;
+
+      // 第二次增资
+      const inv2 = document.getElementById('investorKey2').value;
+      const P2 = parseFloat(document.getElementById('targetPct2').value) / 100;
+      const old2 = tempCaps[inv2] || 0;
+      const x2 = (P2 * tempBase - old2) / (1 - P2);
+      tempCaps[inv2] = old2 + x2;
+      if (inv2 === 'E' || inv2 === 'F') tempCaps[inv2] = (tempCaps[inv2] === x1 ? x1 + x2 : x2);
+      tempBase += x2;
+
+      const totalX = x1 + x2;
+      const newTotal = tempBase;
+      let html = `<p>增资 1: ¥${x1.toFixed(2)}, 增资 2: ¥${x2.toFixed(2)}<br>总增资: ¥${totalX.toFixed(2)}, 增资后注册资本: ¥${newTotal.toFixed(2)}</p>`;
+      renderTable('result2', tempCaps, newTotal, html);
+    }
+
+    function renderTable(containerId, data, totalCapital, headerHtml = '') {
+      let html = headerHtml + '<table><tr><th>股东</th><th>出资额 (元)</th><th>持股比例 (%)</th></tr>';
+      let sum = 0;
+      for (let key in data) {
+        const cap = data[key];
+        const pct = totalCapital ? (cap / totalCapital * 100) : 0;
+        html += `<tr><td style="text-align:left">${key}</td><td>${cap.toFixed(2)}</td><td>${pct.toFixed(2)}</td></tr>`;
+        sum += cap;
+      }
+      html += `<tr class="total-row"><td style="text-align:left">总计</td><td>${sum.toFixed(2)}</td><td>100.00</td></tr>`;
+      html += '</table>';
+      document.getElementById(containerId).innerHTML = html;
+    }
+  </script>
+</body>
+</html>
